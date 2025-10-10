@@ -190,8 +190,8 @@ if __name__ == "__main__":
     trainMOT16data = MOT16(root = 'MOT16/train', getGroundTruth=True) 
     testMOT16data = MOT16(root = 'MOT16/test', getGroundTruth=False) 
 
-    print(trainMOT16data.__len__())
-    print(testMOT16data.__len__())
+    print(len(trainMOT16data))
+    print(len(testMOT16data))
 
 
 
