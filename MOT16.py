@@ -95,6 +95,13 @@ class MOT16(Dataset):
                 boxes = _clip_xyxy(boxes, w, h)
                 labels = torch.ones((boxes.size(0),), dtype=torch.int64)  # single class = 1
                 obj_ids = torch.tensor(rows["id"].values, dtype=torch.int64)
+
+                #filtering invalid boxes because this code seems to create some
+                valid   = (boxes[:, 2] > boxes[:, 0]) & (boxes[:, 3] > boxes[:, 1])
+                boxes   = boxes[valid]
+                labels  = labels[valid]
+                obj_ids = obj_ids[valid]
+
             else:
                 boxes = torch.zeros((0,4), dtype=torch.float32)
                 labels = torch.zeros((0,), dtype=torch.int64)
@@ -115,6 +122,12 @@ class MOT16(Dataset):
 
         if self.transform is not None:
             img = self.transform(img)
+
+        if (boxes[:, 2] - boxes[:, 0] <= 0).any() or (boxes[:, 3] - boxes[:, 1] <= 0).any():
+            print(f"Invalid box in image: {img_path}, sequence: {name}, frame: {frame_number}")
+            print(f"Boxes: {boxes}")
+
+        
 
         return img, target, meta
 
