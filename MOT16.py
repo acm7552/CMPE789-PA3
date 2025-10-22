@@ -70,12 +70,14 @@ class MOT16(Dataset):
 
     def _filter_rows(self, df, frame_id):
         rows = df[df["frame"] == frame_id]
+        #print(rows)
         if self.require_flag and "flag" in rows:
             rows = rows[rows["flag"] == 1]
         if self.keep_classes is not None and "class" in rows:
             rows = rows[rows["class"].isin(self.keep_classes)]
         if "visibility" in rows:
             rows = rows[rows["visibility"] >= self.min_visibility]
+        #print(rows)
         return rows
 
     def __getitem__(self, index):
