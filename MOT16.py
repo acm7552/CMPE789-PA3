@@ -32,11 +32,12 @@ def detection_collate(batch):
 
 
 class MOT16(Dataset):
-    def __init__(self, root, transform=None, getGroundTruth=True,
+    def __init__(self, root, transform=None, getGroundTruth=True, useDetections=False,
                  keep_classes=(1,), require_flag=True, min_visibility=0.0):
         self.root = root
         self.transform = transform
         self.getGroundTruth = getGroundTruth
+        self.useDetections = useDetections
         self.keep_classes = set(keep_classes) if keep_classes else None
         self.require_flag = require_flag
         self.min_visibility = float(min_visibility)
@@ -57,9 +58,15 @@ class MOT16(Dataset):
                 frame_number = int(os.path.splitext(imageFile)[0])
                 self.instances.append((os.path.join(images_folder, imageFile), name, frame_number))
 
-            gt_txt = os.path.join(seq_path, "gt", "gt.txt")
-            if getGroundTruth and os.path.exists(gt_txt):
-                df = pd.read_csv(gt_txt, header=None)
+            if getGroundTruth:
+                txt_path = os.path.join(seq_path, "gt", "gt.txt")
+            elif useDetections:
+                txt_path = os.path.join(seq_path, "det", "det.txt")
+            else:
+                txt_path = None
+
+            if getGroundTruth and os.path.exists(txt_path):
+                df = pd.read_csv(txt_path, header=None)
                 df.columns = ["frame","id","bb_left","bb_top","bb_width","bb_height","flag","class","visibility"]
                 self.labels[name] = df
             else:
@@ -68,14 +75,18 @@ class MOT16(Dataset):
     def __len__(self):
         return len(self.instances)
 
-    def _filter_rows(self, df, frame_id):
+    def _filter_rows(self, df, frame_id, detection=False, score_thresh=0.0):
         rows = df[df["frame"] == frame_id]
-        if self.require_flag and "flag" in rows:
-            rows = rows[rows["flag"] == 1]
-        if self.keep_classes is not None and "class" in rows:
-            rows = rows[rows["class"].isin(self.keep_classes)]
-        if "visibility" in rows:
-            rows = rows[rows["visibility"] >= self.min_visibility]
+        if not detection:  # ground truth
+            if self.require_flag and "flag" in rows:
+                rows = rows[rows["flag"] == 1]
+            if self.keep_classes is not None and "class" in rows:
+                rows = rows[rows["class"].isin(self.keep_classes)]
+            if "visibility" in rows:
+                rows = rows[rows["visibility"] >= self.min_visibility]
+        else:  # detection
+            if "score" in rows:
+                rows = rows[rows["score"] >= score_thresh]
         return rows
 
     def __getitem__(self, index):
@@ -88,7 +99,7 @@ class MOT16(Dataset):
 
         df_seq = self.labels[name]
         if df_seq is not None:
-            rows = self._filter_rows(df_seq, frame_number)
+            rows = self._filter_rows(df_seq, frame_number, detection=self.useDetections, score_thresh=0.3)
             if len(rows) > 0:
                 xywh = torch.tensor(rows[["bb_left","bb_top","bb_width","bb_height"]].values, dtype=torch.float32)
                 boxes = _xywh_to_xyxy(xywh)
@@ -120,9 +131,24 @@ class MOT16(Dataset):
             }
             meta = {"sequence": name, "frameID": frame_number, "object_ids": None}
 
+        # resizing the 1920x1080 to 640x360. same width as other smaller files, 
+        # uniform learning maybe and speeds up learning?
+        # basically making them 9 times smaller while hopefully maintaing same amount of learning
+        # if w == 1920 and h == 1080:
+        #     #print("resizing")
+        #     img = img.resize((640, 360), Image.BILINEAR)
+
+        #     # scale bounding boxes
+        #     scale = 1/3
+        #     if "boxes" in target and target["boxes"].numel() > 0:
+        #         target["boxes"] = target["boxes"] * torch.tensor([scale, scale, scale, scale])
+
+
         if self.transform is not None:
             img = self.transform(img)
 
+        # check if bounding boxes are invalid because it will crash
+        boxes = target["boxes"]
         if (boxes[:, 2] - boxes[:, 0] <= 0).any() or (boxes[:, 3] - boxes[:, 1] <= 0).any():
             print(f"Invalid box in image: {img_path}, sequence: {name}, frame: {frame_number}")
             print(f"Boxes: {boxes}")
