@@ -28,8 +28,8 @@ def load_data():
 def load_model(weights_pth, device):
     # no weights yet, gonna load them in
     model = fasterrcnn_resnet50_fpn(weights=None)
-    #in_features = model.roi_heads.box_predictor.cls_score.in_features
-    #model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 2)  # mot16 only does people or background
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 2)  # mot16 only does people or background
 
     # load the state dict from fine tuning
     loadWeights = torch.load(weights_pth, map_location=device, weights_only=True)
@@ -57,9 +57,10 @@ def get_detections(model, image, device, thresh, save=True):
     pred = predictions[0]
     boxes = pred["boxes"].cpu().numpy()
     scores = pred["scores"].cpu().numpy()
+    labels = pred["labels"].cpu().numpy()
 
     # filter by confidence
-    keep = scores >= thresh
+    keep = (labels == 1) & (scores >= thresh)
     boxes = boxes[keep]
     scores = scores[keep]
 
@@ -78,7 +79,7 @@ def get_detections(model, image, device, thresh, save=True):
 
     return boxes, scores, img_cv
 
-def play_sequence(model, sequence_dir, device, thresh=0.3, save_path=None, vidName=None):
+def play_sequence(model, sequence_dir, device, thresh, save_path, vidName):
     # get frames
     frames = sorted([os.path.join(sequence_dir, f) for f in os.listdir(sequence_dir) if f.endswith(".jpg")])
 
@@ -128,7 +129,7 @@ def main():
 
     testSequence = f"{args.sequence}img1/"
 
-    parent = os.path.basename(os.path.dirname(testSequence))  # "MOT16-01"
+    parent = os.path.basename(os.path.dirname(os.path.dirname(testSequence)))  # "MOT16-01"
     model_name = args.model.replace(".pth", "")
 
     video_name = f"{parent}_{model_name}"
@@ -137,7 +138,7 @@ def main():
         play_sequence(pretrained, testSequence, device, thresh=0.5, save_path="videos/", vidName = video_name)
         return
     else:
-        finetunedmodel = load_model("finetunedfasterrcnn_old.pth", device)
+        finetunedmodel = load_model(args.model, device)
         #get_detections(finetunedmodel, testFrame, device, thresh=0.5, save=True)
         play_sequence(finetunedmodel, testSequence, device, thresh=0.5, save_path="videos/", vidName = video_name)
 
