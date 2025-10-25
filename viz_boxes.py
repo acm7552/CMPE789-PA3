@@ -23,9 +23,12 @@ def draw_boxes_with_ids(img_tensor, boxes_xyxy, ids=None, width=2):
         x1, y1, x2, y2 = [float(v) for v in boxes_xyxy[k].tolist()]
         label = None
         color = "red"
-        if ids is not None and k < len(ids) and ids[k] is not None:
+        #if ids is not None and k < len(ids) and ids[k] is not None:
+        #print(ids[k])
+        if ids[k] == 1:
             label = f"ID {int(ids[k])}"
-            color = _color_from_id(ids[k])
+            #color = _color_from_id(ids[k])
+            color = "green"
         draw.rectangle([x1, y1, x2, y2], outline=color, width=width)
         if label:
             # small text offset inside the box
