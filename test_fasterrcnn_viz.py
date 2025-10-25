@@ -1,5 +1,6 @@
 import os
 import torch
+import argparse
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
@@ -37,6 +38,13 @@ def load_model(weights_pth, device):
     model.eval()
     return model
 
+def load_pretrained(device):
+
+    model = fasterrcnn_resnet50_fpn(weights="DEFAULT")
+    model.to(device)
+    model.eval()
+    return model
+
 
 def get_detections(model, image, device, thresh, save=True):
     img = Image.open(image).convert("RGB")
@@ -65,48 +73,76 @@ def get_detections(model, image, device, thresh, save=True):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
         out_path = os.path.join("outputs", os.path.basename(image))
         os.makedirs("outputs", exist_ok=True)
-        cv2.imwrite(out_path, img_cv)
-        print(f"saved detections to {out_path}")
+        #cv2.imwrite(out_path, img_cv)
+        #print(f"saved detections to {out_path}")
 
-    return boxes, scores
+    return boxes, scores, img_cv
 
+def play_sequence(model, sequence_dir, device, thresh=0.3, save_path=None, vidName=None):
+    # get frames
+    frames = sorted([os.path.join(sequence_dir, f) for f in os.listdir(sequence_dir) if f.endswith(".jpg")])
 
+    video = None
+    if save_path:
 
+        os.makedirs(save_path, exist_ok=True)
+        # get frame size from first image
+        sample = cv2.imread(frames[0])
+        h, w = sample.shape[:2]
+
+        video_file = os.path.join(save_path, f"{vidName}.mp4")
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # or 'XVID'
+        out_vid = cv2.VideoWriter(video_file, fourcc, 30, (w, h))
+
+    for frame_path in frames:
+        # get_detections returns boxes, scores, but you need the image with rectangles
+        boxes, scores, img_cv = get_detections(model, frame_path, device, thresh, save=True)
+
+        # display
+        cv2.imshow("Detections", img_cv)
+        if out_vid:
+            out_vid.write(img_cv)
+
+        if cv2.waitKey(30) & 0xFF == ord('q'):
+            break
+
+    cv2.destroyAllWindows()
+    if out_vid:
+        out_vid.release()
+        print(f"Saved video to {video_file}")
 
 
 
 def main():
 
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", required=True, help="path to model params")
+    ap.add_argument("--sequence", required=True, help="path to frames for tracking, i.e. 'MOT16/test/MOT16-01/'")
+    #ap.add_argument("--vidname", required=True, help="name of output video")
+    args = ap.parse_args()
+
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    finetunedmodel = load_model("finetunedfasterrcnn_old.pth", device)
 
-    testFrame = "MOT16/test/MOT16-01/img1/000001.jpg"
+    #testFrame = "MOT16/test/MOT16-01/img1/000001.jpg"
 
-    get_detections(finetunedmodel, testFrame, device, thresh=0.3, save=True)
+    testSequence = f"{args.sequence}img1/"
+
+    parent = os.path.basename(os.path.dirname(testSequence))  # "MOT16-01"
+    model_name = args.model.replace(".pth", "")
+
+    video_name = f"{parent}_{model_name}"
+    if args.model.lower() == 'pretrained':
+        pretrained = load_pretrained(device)
+        play_sequence(pretrained, testSequence, device, thresh=0.5, save_path="videos/", vidName = video_name)
+        return
+    else:
+        finetunedmodel = load_model("finetunedfasterrcnn_old.pth", device)
+        #get_detections(finetunedmodel, testFrame, device, thresh=0.5, save=True)
+        play_sequence(finetunedmodel, testSequence, device, thresh=0.5, save_path="videos/", vidName = video_name)
 
 
 
 if __name__ == "__main__":
+
     main()
-
-
-
-
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-

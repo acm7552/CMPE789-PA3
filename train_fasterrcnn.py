@@ -14,37 +14,13 @@ from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 # import your class
-from MOT16 import MOT16, detection_collate   # or: from your_file import MOT16 as MOT16Dataset
+from MOT16 import MOT16, detection_collate  
 
-class Siamese_Network(nn.Module):
-    def __init__(self):
-        super(Siamese_Network, self).__init__()
-        # CNN layers for feature extraction
-        self.conv1 = nn.Conv2d(1, 64, kernel_size=3)
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=3)
-        self.conv3 = nn.Conv2d(128, 128, kernel_size=3)
-        self.fc1 = nn.Linear(128 * 22 * 22, 256)
-        self.fc2 = nn.Linear(256, 256)
-        
-    def forward_one(self, x):
-        x = F.relu(F.max_pool2d(self.conv1(x), 2))
-        x = F.relu(F.max_pool2d(self.conv2(x), 2))
-        x = F.relu(self.conv3(x))
-        x = x.view(-1, 128 * 22 * 22)
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-    
-    def forward(self, input1, input2):
-        output1 = self.forward_one(input1)
-        output2 = self.forward_one(input2)
-        return output1, output2
-    
 
 def train_fasterCNN():
 
     # transforms. dont augment test data
-    #print(torch.cuda.device_count())      # Should show number of NVIDIA GPUs available
+    #print(torch.cuda.device_count())
     #print(torch.cuda.get_device_name(0))
     tf = transforms.ToTensor()
 
@@ -78,11 +54,11 @@ def train_fasterCNN():
         collate_fn=detection_collate, num_workers=2, persistent_workers=True
     )
 
-    test_loader = DataLoader(
-        testMOT16data, batch_size=16, shuffle=False,
-        pin_memory=True,
-        collate_fn=detection_collate, num_workers=2, persistent_workers=True
-    )
+    # test_loader = DataLoader(
+    #     testMOT16data, batch_size=16, shuffle=False,
+    #     pin_memory=True,
+    #     collate_fn=detection_collate, num_workers=2, persistent_workers=True
+    # )
 
 
     # pretrained model
