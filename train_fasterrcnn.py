@@ -41,7 +41,6 @@ class Siamese_Network(nn.Module):
         return output1, output2
     
 
-
 def train_fasterCNN():
 
     # transforms. dont augment test data
@@ -89,6 +88,9 @@ def train_fasterCNN():
     # pretrained model
     model = fasterrcnn_resnet50_fpn(weights="DEFAULT")
 
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 2)
+
     # Freeze backbone layers
     for param in model.backbone.parameters():
         param.requires_grad = False
@@ -129,9 +131,9 @@ def train_fasterCNN():
             print(f"Loss: {losses.item():.4f} | ({imagesDone}/{len(train_loader.dataset)})")
             print(f"transfering data: {data_transfer_time:.4f}s\nforward pass: {forward_time:.4f}s\nbackward pass: {backward_time:.4f}s")
             print(f"total time: {batch_time:.4f}s")
-            torch.save(model.state_dict(), "finetunedfasterrcnn.pth")
             del images, targets, loss_dict, losses
             torch.cuda.empty_cache()
+        torch.save(model.state_dict(), "finetunedfasterrcnn.pth")
 
     torch.save(model.state_dict(), "finetunedfasterrcnn.pth")
 
@@ -175,11 +177,6 @@ def train_fasterCNN():
         # print(f"Validation loss after epoch {epoch + 1}: {avg_val_loss:.4f}\n")
         # model.train()
     
-
-def train_siamese():
-    return
-
-
 
 
 def main():
