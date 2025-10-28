@@ -141,7 +141,7 @@ def play_sequence(model, siamese, sequence_dir, device, thresh, save_path, vidNa
         out_vid = cv2.VideoWriter(video_file, fourcc, 30, (w, h))
 
     # init the id tracker
-    newtracker = SimpleTracker(max_lost=30, similarity_thresh=0.4)
+    newtracker = SimpleTracker(max_lost=2, similarity_thresh=0.9)
 
     for frame_path in frames:
         # get_detections returns boxes, scores, but you need the image with rectangles
@@ -155,7 +155,7 @@ def play_sequence(model, siamese, sequence_dir, device, thresh, save_path, vidNa
             if crop.size == 0:  #skip empty crops
                 continue
 
-            crop_tensor = convert_box_for_siamese(crop, device, input_size=128)
+            crop_tensor = convert_box_for_siamese(crop, device, input_size=16)
             emb = get_embedding(siamese, crop_tensor)
             detections.append((emb, box)) # save the box
 
@@ -206,17 +206,17 @@ def main():
     parent = os.path.basename(os.path.dirname(os.path.dirname(testSequence)))  # "MOT16-01"
     model_name = args.model.replace(".pth", "")
 
-    siamese = load_siamese("runs/reid/siamese_triplet.pt", device)
+    siamese = load_siamese("runs/reid/siamese_triplet_murphy.pt", device)
 
     video_name = f"{parent}_{model_name}"
     if args.model.lower() == 'pretrained':
         pretrained = load_pretrained(device)
-        play_sequence(pretrained, siamese, testSequence, device, thresh=0.5, save_path="videos/", vidName = video_name)
+        play_sequence(pretrained, siamese, testSequence, device, thresh=0.9, save_path="videos/", vidName = video_name)
         return
     else:
         finetunedmodel = load_model(args.model, device)
         #get_detections(finetunedmodel, testFrame, device, thresh=0.5, save=True)
-        play_sequence(finetunedmodel, siamese, testSequence, device, thresh=0.5, save_path="videos/", vidName = video_name)
+        play_sequence(finetunedmodel, siamese, testSequence, device, thresh=0.9, save_path="videos/", vidName = video_name)
 
 
 

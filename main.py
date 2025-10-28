@@ -48,6 +48,7 @@ def main():
 
             # optional: save a quick visualization for the first sample
             if args.show and batches_inspected == 0 and i == 0:
+                print("im in here")
                 # convert back to PIL for drawing
                 pil = transforms.ToPILImage()(img_t)
                 draw = ImageDraw.Draw(pil)

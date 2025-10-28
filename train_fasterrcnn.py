@@ -12,6 +12,7 @@ import torchvision
 from torchvision import transforms
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+import matplotlib.pyplot as plt
 
 # import your class
 from MOT16 import MOT16, detection_collate  
@@ -28,12 +29,13 @@ def train_fasterCNN():
 
     # do augmentation here
     augment_transform = transforms.Compose([
-        transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5),
+        # transforms.RandomHorizontalFlip(0.5), 
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
         transforms.RandomGrayscale(p=0.1),
-        transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
-        transforms.ToTensor(),
+        transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 2)),
         # random rectangular occlusions might help training
-        transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.3, 3.3))
+        transforms.ToTensor(),
+        transforms.RandomErasing(p=0.3, scale=(0.02, 0.1), ratio=(0.3, 3.3))
     ])
 
 
@@ -42,16 +44,16 @@ def train_fasterCNN():
     # ds = MOT16(root=args.root, transform=tf, getGroundTruth=get_gt)
 
     trainMOT16data = MOT16(root = 'MOT16/train', transform=augment_transform, getGroundTruth=True) 
-    testMOT16data = MOT16(root = 'MOT16/test', transform=tf, getGroundTruth=False, useDetections=True)
-    score_threshold = 0.3  # low confidence detections
+    #testMOT16data = MOT16(root = 'MOT16/test', transform=tf, getGroundTruth=False, useDetections=True)
+    # score_threshold = 0.3  # low confidence detections
 
-    print(f"[INFO] train dataset size: {len(trainMOT16data)} frames")
+    print(f"train dataset size: {len(trainMOT16data)} frames")
 
 
     train_loader = DataLoader(
         trainMOT16data, batch_size=16, shuffle=True,
         pin_memory=True,
-        collate_fn=detection_collate, num_workers=2, persistent_workers=True
+        collate_fn=detection_collate, num_workers=2 , persistent_workers=True
     )
 
     # test_loader = DataLoader(
@@ -67,51 +69,86 @@ def train_fasterCNN():
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 2)
 
-    # Freeze backbone layers
+    # freeze backbone layers
     for param in model.backbone.parameters():
         param.requires_grad = False
-    # Only fine-tune the heads for classification and mask prediction
+
+    # unfreeze last block and see if that helps
+    #for param in model.backbone.body.layer4.parameters():
+        #param.requires_grad = True
+
+    # freeze everything
+    #for param in model.parameters():
+    #    param.requires_grad = False
+
+    # unfreeze only the final predictor head
+    #for param in model.roi_heads.box_predictor.parameters():
+    #    param.requires_grad = True
+
+    # only finetune the heads for classification and mask prediction
     params_to_optimize = [p for p in model.parameters() if p.requires_grad]
+    
     # print(device)
     model.to(device)
     model.train()
 
-    opt = torch.optim.Adam(params_to_optimize, lr=0.001)
-    epochs = 20
-    start_epoch = time.time()
+    #opt = torch.optim.Adam(params_to_optimize, lr=0.001)
+    opt = torch.optim.AdamW(params_to_optimize, lr=2e-3, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.StepLR(opt, step_size=5, gamma=0.5)
+    epochs = 30
+    # start_epoch = time.time()
+    epoch_losses = []
 
     for epoch in range(epochs):
         print(f"Epoch {epoch+1}/{epochs}")
+        running_loss = 0.0
         imagesDone = 0 
         for images, targets, _ in train_loader:
-            batch_start = time.time()
+            #batch_start = time.time()
             images = list(img.to(device, non_blocking=True) for img in images)
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-            data_transfer_time = time.time() - batch_start
-
-            forward_start = time.time()
+            #data_transfer_time = time.time() - batch_start
+            #torch.cuda.synchronize()
+            #forward_start = time.time()
             loss_dict = model(images, targets)
             losses = sum(loss for loss in loss_dict.values())
-            forward_time = time.time() - forward_start
-
-            backward_start = time.time()
+            #forward_time = time.time() - forward_start
+            #torch.cuda.synchronize()
+            #backward_start = time.time()
             opt.zero_grad()
             losses.backward()
             opt.step()
-
-            backward_time = time.time() - backward_start
-            batch_time = time.time() - batch_start
+            running_loss += losses.item()
+            #torch.cuda.synchronize()
+            #backward_time = time.time() - backward_start
+            #batch_time = time.time() - batch_start
 
 
             imagesDone += len(images)
-            print(f"Loss: {losses.item():.4f} | ({imagesDone}/{len(train_loader.dataset)})")
-            print(f"transfering data: {data_transfer_time:.4f}s\nforward pass: {forward_time:.4f}s\nbackward pass: {backward_time:.4f}s")
-            print(f"total time: {batch_time:.4f}s")
+
+            if imagesDone % 80 == 0:
+                print(f"loss: {losses.item():.4f} | ({imagesDone}/{len(train_loader.dataset)})")
+                #print(f"transfering data: {data_transfer_time:.4f}s\nforward pass: {forward_time:.4f}s\nbackward pass: {backward_time:.4f}s")
+                #print(f"total time: {batch_time:.4f}s")
             del images, targets, loss_dict, losses
             torch.cuda.empty_cache()
+        scheduler.step()
+        avg_loss = running_loss / len(train_loader)
+        epoch_losses.append(avg_loss)
+        print(f"epoch [{epoch+1}/{epochs}] avg loss: {avg_loss:.4f}")
+
         torch.save(model.state_dict(), "finetunedfasterrcnn.pth")
 
-    torch.save(model.state_dict(), "finetunedfasterrcnn.pth")
+    torch.save(model.state_dict(), "finetunedfasterrcnn_final.pth")
+
+    plt.figure(figsize=(8,5))
+    plt.plot(range(1, epochs+1), epoch_losses, marker='o', color='b')
+    plt.title("Training Loss per Epoch")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.grid(True)
+    plt.savefig("training_loss_curve.png", dpi=200)
+    plt.show()
 
         #validation
         # model.eval()
@@ -153,7 +190,6 @@ def train_fasterCNN():
         # print(f"Validation loss after epoch {epoch + 1}: {avg_val_loss:.4f}\n")
         # model.train()
     
-
 
 def main():
     ap = argparse.ArgumentParser()

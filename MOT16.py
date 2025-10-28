@@ -1,8 +1,11 @@
 import os
 import torch
+import random
 import pandas as pd
 from PIL import Image
 from torch.utils.data import Dataset
+import torchvision.transforms.functional as TF
+
 
 def _is_dir(p): 
     try: return os.path.isdir(p)
@@ -147,13 +150,19 @@ class MOT16(Dataset):
         if self.transform is not None:
             img = self.transform(img)
 
+        if self.transform is None or isinstance(self.transform, torch.nn.Identity):
+            pass  # no other transforms
+        # if random.random() < 0.5 and target["boxes"].numel() > 0:
+        #     img = TF.hflip(img)
+        #     boxes = target["boxes"]
+        #     boxes[:, [0,2]] = w - boxes[:, [2,0]]  # flip x coordinates
+        #     target["boxes"] = boxes
+
         # check if bounding boxes are invalid because it will crash
         boxes = target["boxes"]
         if (boxes[:, 2] - boxes[:, 0] <= 0).any() or (boxes[:, 3] - boxes[:, 1] <= 0).any():
             print(f"Invalid box in image: {img_path}, sequence: {name}, frame: {frame_number}")
             print(f"Boxes: {boxes}")
-
-        
 
         return img, target, meta
 

@@ -42,24 +42,59 @@ def save_fig(path):
 # =========================
 # Embedding model
 # =========================
+# class EmbeddingNet(nn.Module):
+#     def __init__(self, emb_dim=256, in_ch=3):
+#         super().__init__()
+#         self.conv1 = nn.Conv2d(in_ch, 64, 3, padding=1)
+#         self.conv2 = nn.Conv2d(64, 128, 3, padding=1)
+#         self.conv3 = nn.Conv2d(128, 128, 3, padding=1)
+#         self.pool  = nn.MaxPool2d(2)
+#         self.gap   = nn.AdaptiveAvgPool2d((1,1))
+#         self.fc    = nn.Linear(128, emb_dim)
+
+#     def forward(self, x):
+#         x = self.pool(F.relu(self.conv1(x)))
+#         x = self.pool(F.relu(self.conv2(x)))
+#         x = F.relu(self.conv3(x))
+#         x = self.gap(x).flatten(1)
+#         x = self.fc(x)
+#         x = F.normalize(x, p=2, dim=1)
+#         return x
+
 class EmbeddingNet(nn.Module):
     def __init__(self, emb_dim=256, in_ch=3):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_ch, 64, 3, padding=1)
-        self.conv2 = nn.Conv2d(64, 128, 3, padding=1)
-        self.conv3 = nn.Conv2d(128, 128, 3, padding=1)
-        self.pool  = nn.MaxPool2d(2)
-        self.gap   = nn.AdaptiveAvgPool2d((1,1))
-        self.fc    = nn.Linear(128, emb_dim)
+        self.features = nn.Sequential(
+            nn.Conv2d(in_ch, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),
+
+            nn.Conv2d(64, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),
+
+            nn.Conv2d(128, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+        )
+
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(128, 256),
+            nn.ReLU(inplace=True),
+            nn.Linear(256, emb_dim)
+        )
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = F.relu(self.conv3(x))
+        x = self.features(x)
         x = self.gap(x).flatten(1)
         x = self.fc(x)
         x = F.normalize(x, p=2, dim=1)
         return x
+    
+
 
 # =========================
 # Triplet loss
@@ -385,7 +420,7 @@ def main():
         retrieval_grid(val_images, emb, val_labels.to(device), os.path.join(args.out_dir, f"retrieval_epoch{epoch}.jpg"))
 
     # save final
-    torch.save(model.state_dict(), os.path.join(args.out_dir, "siamese_triplet.pt"))
+    torch.save(model.state_dict(), os.path.join(args.out_dir, "siamese_triplet_murphy.pt"))
     plot_loss_curve(losses, os.path.join(args.out_dir, "train_loss.png"))
     print(f"[DONE] outputs in {args.out_dir}")
 
