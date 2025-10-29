@@ -2,3 +2,5 @@
 *.jpg
 MOT16/
 MOT16.zip
+*.pyc
+__pycache__/
