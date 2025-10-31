@@ -338,8 +338,8 @@ def main():
     ap.add_argument("--seed", type=int, default=42)
 
     # data/cropping
-    ap.add_argument("--crop_h", type=int, default=128)
-    ap.add_argument("--crop_w", type=int, default=64)
+    ap.add_argument("--crop_h", type=int, default=16)
+    ap.add_argument("--crop_w", type=int, default=16)
     ap.add_argument("--pad_ratio", type=float, default=0.10)
     ap.add_argument("--min_visibility", type=float, default=0.2)
 

@@ -60,9 +60,9 @@ def convert_box_for_siamese(crop, device, input_size=16,):
 
     crop = Image.fromarray(crop).convert('RGB')
     #crop = crop.convert('RGB')
-
+    #  Hardcoded resize to 128x64 for reid model
     tfm = transforms.Compose([
-        transforms.Resize((input_size, input_size)),
+        transforms.Resize((128, 64)),
         transforms.ToTensor(),
     ])
     crop_tensor = tfm(crop).unsqueeze(0).to(device)  
@@ -206,8 +206,8 @@ def main():
     parent = os.path.basename(os.path.dirname(os.path.dirname(testSequence)))  # "MOT16-01"
     model_name = args.model.replace(".pth", "")
 
-    siamese = load_siamese("runs/reid/siamese_triplet_murphy.pt", device)
-
+    #siamese = load_siamese("runs/reid/siamese_triplet_murphy.pt", device)
+    siamese = load_siamese("runs/input_128_64/reid_viz/siamese_triplet_murphy.pt", device)
     video_name = f"{parent}_{model_name}"
     if args.model.lower() == 'pretrained':
         pretrained = load_pretrained(device)

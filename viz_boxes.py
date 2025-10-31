@@ -5,7 +5,7 @@ import torch
 from torchvision import transforms
 
 # import your dataset
-from MOT16 import MOT16   # <-- change to your dataset module
+from MOT16 import MOT16  
 
 def _to_pil(img_tensor):
     return transforms.ToPILImage()(img_tensor.cpu())
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     ds = MOT16(root="MOT16/train", transform=transforms.ToTensor(), getGroundTruth=True)
 
     #idx = random.randrange(len(ds))
-    idx = 10
+    idx = 31
     img, target, meta = ds[idx]  # assumes your dataset returns (image, target, meta)
 
     # Try both key styles, depending on how your dataset named it
